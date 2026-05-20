@@ -14,6 +14,14 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
+# When run by Streamlit Cloud (no CLI args), launch the UI instead of crashing.
+_streamlit_args = {"--repo", "--goal"}
+if not any(a in sys.argv for a in _streamlit_args):
+    import runpy, os
+    _ui = os.path.join(os.path.dirname(__file__), "ui.py")
+    runpy.run_path(_ui, run_name="__main__")
+    sys.exit(0)
+
 from rich.rule import Rule
 from rich.table import Table
 from rich import box
