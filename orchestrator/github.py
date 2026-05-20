@@ -94,7 +94,7 @@ class GitHubConnector:
             clone_url = clone_url.replace("https://", f"https://{self.token}@")
 
         if os.path.isdir(target_dir):
-            shutil.rmtree(target_dir, ignore_errors=True)
+            self._force_rmtree(target_dir)
 
         log.info(f"Cloning {info.full_name}@{branch} → {target_dir}")
         try:
@@ -153,6 +153,15 @@ class GitHubConnector:
             raise FileNotFoundError(f"Not found on GitHub: {path}")
         r.raise_for_status()
         return r.json()
+
+    @staticmethod
+    def _force_rmtree(path: str):
+        """Remove a directory tree, clearing read-only flags first (needed on Windows for .git)."""
+        import stat
+        def _remove_readonly(func, fpath, _):
+            os.chmod(fpath, stat.S_IWRITE)
+            func(fpath)
+        shutil.rmtree(path, onerror=_remove_readonly)
 
     @staticmethod
     def _head_sha(repo_dir: str) -> str:

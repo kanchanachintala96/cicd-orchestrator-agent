@@ -1,3 +1,6 @@
-# No external runtime dependencies — stdlib only.
-# Install dev/test tools for the orchestrator itself if desired:
-# pytest>=7.0
+streamlit>=1.35
+altair>=5.3
+pandas>=2.2
+requests>=2.31
+rich>=13.7
+anthropic>=0.28
