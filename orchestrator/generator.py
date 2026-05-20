@@ -89,13 +89,16 @@ class PipelineGenerator:
         return steps
 
     def _steps_lint_only(self) -> List[PipelineStep]:
-        return [self._lint_step()]
+        step = self._lint_step()
+        return [step] if step else []
 
     def _steps_full_pipeline(self) -> List[PipelineStep]:
         steps: List[PipelineStep] = []
         steps.extend(self._install_step())
         if self.config.has_lint_config:
-            steps.append(self._lint_step())
+            lint = self._lint_step()
+            if lint:
+                steps.append(lint)
         steps.extend(self._framework_steps())
         steps.extend(self._test_step())
         steps.extend(self._run_app_step())
@@ -154,7 +157,10 @@ class PipelineGenerator:
             timeout=120,
         )]
 
-    def _lint_step(self) -> PipelineStep:
+    def _lint_step(self):
+        import shutil as _shutil
+        py = self.config.python_executable
+
         has_ruff = (
             os.path.isfile(os.path.join(self.config.root, "ruff.toml")) or
             os.path.isfile(os.path.join(self.config.root, ".ruff.toml"))
@@ -166,24 +172,26 @@ class PipelineGenerator:
             except Exception:
                 pass
 
-        if has_ruff:
+        if has_ruff and _shutil.which("ruff"):
             return PipelineStep(
                 name="Lint (ruff)",
-                command=[self.config.python_executable, "-m", "ruff", "check", "."],
+                command=[py, "-m", "ruff", "check", "."],
                 cwd=self.config.root,
                 critical=False,
                 max_retries=1,
                 timeout=60,
             )
-        return PipelineStep(
-            name="Lint (flake8)",
-            command=[self.config.python_executable, "-m", "flake8", ".",
-                     "--max-line-length=120", "--statistics"],
-            cwd=self.config.root,
-            critical=False,
-            max_retries=1,
-            timeout=60,
-        )
+        if _shutil.which("flake8"):
+            return PipelineStep(
+                name="Lint (flake8)",
+                command=[py, "-m", "flake8", ".", "--max-line-length=120", "--statistics"],
+                cwd=self.config.root,
+                critical=False,
+                max_retries=1,
+                timeout=60,
+            )
+        log.warning("No linter found on PATH (flake8/ruff) — skipping lint step.")
+        return None
 
     def _test_step(self) -> List[PipelineStep]:
         if not self.config.has_tests:
