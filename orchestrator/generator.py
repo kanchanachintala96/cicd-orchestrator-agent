@@ -10,6 +10,7 @@ log = get_logger("cicd.generator")
 _GOAL_TESTS    = ("run tests", "test", "tests")
 _GOAL_LINT     = ("lint only", "lint")
 _GOAL_PIPELINE = ("run pipeline", "pipeline", "full pipeline", "all")
+_GOAL_DEPLOY   = ("deploy", "release", "deploy to production")
 
 
 @dataclass
@@ -41,7 +42,10 @@ class PipelineGenerator:
         log.info(f"Generating pipeline for goal: '{self.goal}'")
         pipeline = Pipeline(goal=self.goal)
 
-        if self.config.project_type == "node":
+        if self._matches(_GOAL_DEPLOY):
+            pipeline.steps.extend(self._steps_full_pipeline() if self.config.project_type in ("python", "node") else [])
+            pipeline.steps.extend(self._deploy_step())
+        elif self.config.project_type == "node":
             pipeline.steps.extend(self._generate_node_pipeline())
         elif self.config.project_type == "python":
             if self._matches(_GOAL_TESTS):
@@ -176,6 +180,16 @@ class PipelineGenerator:
             critical=False,
             max_retries=1,
             timeout=120,
+        )]
+
+    def _deploy_step(self) -> list:
+        return [PipelineStep(
+            name="Deploy (git push → main)",
+            command=["git", "push", "origin", "HEAD:main"],
+            cwd=self.config.root,
+            critical=True,
+            max_retries=1,
+            timeout=60,
         )]
 
     def _echo_step(self, message: str) -> PipelineStep:
