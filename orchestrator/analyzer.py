@@ -1,3 +1,4 @@
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Optional
@@ -17,6 +18,7 @@ class ProjectConfig:
     test_framework: str = "unittest"
     has_lint_config: bool = False
     python_executable: str = "python"
+    node_package_manager: str = ""
     extra: dict = field(default_factory=dict)
 
 
@@ -45,13 +47,19 @@ class ProjectAnalyzer:
         project_type = self._detect_type()
         config = ProjectConfig(project_type=project_type, root=self.repo_path)
 
-        config.has_requirements = self._exists("requirements.txt")
-        config.has_setup_py = self._exists("setup.py")
-        config.has_pyproject = self._exists("pyproject.toml")
-        config.has_tests = self._detect_tests()
-        config.test_framework = self._detect_test_framework()
-        config.has_lint_config = self._detect_lint()
-        config.python_executable = self._detect_python()
+        if project_type == "node":
+            config.node_package_manager = self._detect_node_pm()
+            config.has_tests = self._detect_node_tests()
+            config.test_framework = self._detect_node_test_framework()
+            config.has_lint_config = self._detect_node_lint()
+        else:
+            config.has_requirements = self._exists("requirements.txt")
+            config.has_setup_py = self._exists("setup.py")
+            config.has_pyproject = self._exists("pyproject.toml")
+            config.has_tests = self._detect_tests()
+            config.test_framework = self._detect_test_framework()
+            config.has_lint_config = self._detect_lint()
+            config.python_executable = self._detect_python()
 
         if project_type == "unknown":
             log.warning(
@@ -62,21 +70,23 @@ class ProjectAnalyzer:
         log.info(f"Detected project type: {project_type}")
         return config
 
-    # ------------------------------------------------------------------
+    # ── Shared helpers ────────────────────────────────────────────────────────
     def _exists(self, filename: str) -> bool:
         return os.path.isfile(os.path.join(self.repo_path, filename))
 
     def _detect_type(self) -> str:
-        py_markers = ["requirements.txt", "setup.py", "pyproject.toml", "*.py"]
-        for marker in py_markers[:3]:
+        if self._exists("package.json"):
+            return "node"
+        py_markers = ["requirements.txt", "setup.py", "pyproject.toml"]
+        for marker in py_markers:
             if self._exists(marker):
                 return "python"
-        # walk one level for .py files
         for f in os.listdir(self.repo_path):
             if f.endswith(".py"):
                 return "python"
         return "unknown"
 
+    # ── Python detection ──────────────────────────────────────────────────────
     def _detect_tests(self) -> bool:
         for name in os.listdir(self.repo_path):
             if name.startswith("test") and name.endswith(".py"):
@@ -86,15 +96,28 @@ class ProjectAnalyzer:
         return False
 
     def _detect_test_framework(self) -> str:
-        #req_path = os.path.join(self.repo_path, "requirements.txt")
-        #if os.path.isfile(req_path):
-        #    content = open(req_path).read().lower()
-        #    if "pytest" in content:
-        #        return "pytest"
+        if self._exists("pytest.ini") or self._exists("conftest.py"):
+            return "pytest"
+        req_path = os.path.join(self.repo_path, "requirements.txt")
+        if os.path.isfile(req_path):
+            try:
+                content = open(req_path, encoding="utf-8", errors="ignore").read().lower()
+                if "pytest" in content:
+                    return "pytest"
+            except Exception:
+                pass
+        pyproject_path = os.path.join(self.repo_path, "pyproject.toml")
+        if os.path.isfile(pyproject_path):
+            try:
+                content = open(pyproject_path, encoding="utf-8", errors="ignore").read().lower()
+                if "pytest" in content:
+                    return "pytest"
+            except Exception:
+                pass
         return "unittest"
 
     def _detect_lint(self) -> bool:
-        lint_files = [".flake8", ".pylintrc", "setup.cfg", "pyproject.toml"]
+        lint_files = [".flake8", ".pylintrc", "setup.cfg", "pyproject.toml", "ruff.toml", ".ruff.toml"]
         return any(self._exists(f) for f in lint_files)
 
     def _detect_python(self) -> str:
@@ -104,7 +127,6 @@ class ProjectAnalyzer:
             path = shutil.which(candidate)
             if not path:
                 continue
-            # On Windows, 'python' may resolve to the Store stub (exit 9009).
             try:
                 r = subprocess.run([candidate, "--version"], capture_output=True, timeout=5)
                 if r.returncode == 0:
@@ -112,3 +134,53 @@ class ProjectAnalyzer:
             except Exception:
                 continue
         return "python"
+
+    # ── Node.js detection ─────────────────────────────────────────────────────
+    def _detect_node_pm(self) -> str:
+        if self._exists("pnpm-lock.yaml"):
+            return "pnpm"
+        if self._exists("yarn.lock"):
+            return "yarn"
+        return "npm"
+
+    def _detect_node_tests(self) -> bool:
+        pkg = self._read_package_json()
+        if not pkg:
+            return False
+        if "test" in pkg.get("scripts", {}):
+            return True
+        dev_deps = {**pkg.get("devDependencies", {}), **pkg.get("dependencies", {})}
+        return any(k in dev_deps for k in ("jest", "mocha", "vitest", "jasmine", "@jest/core"))
+
+    def _detect_node_test_framework(self) -> str:
+        pkg = self._read_package_json()
+        if not pkg:
+            return "jest"
+        dev_deps = {**pkg.get("devDependencies", {}), **pkg.get("dependencies", {})}
+        for fw in ("vitest", "mocha", "jasmine", "jest"):
+            if fw in dev_deps:
+                return fw
+        return "jest"
+
+    def _detect_node_lint(self) -> bool:
+        lint_files = [
+            ".eslintrc", ".eslintrc.js", ".eslintrc.json", ".eslintrc.yml",
+            ".eslintrc.yaml", "eslint.config.js", "eslint.config.mjs",
+        ]
+        if any(self._exists(f) for f in lint_files):
+            return True
+        pkg = self._read_package_json()
+        if pkg:
+            dev_deps = {**pkg.get("devDependencies", {}), **pkg.get("dependencies", {})}
+            return "eslint" in dev_deps
+        return False
+
+    def _read_package_json(self) -> dict:
+        path = os.path.join(self.repo_path, "package.json")
+        if not os.path.isfile(path):
+            return {}
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}

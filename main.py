@@ -15,6 +15,8 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 from rich.rule import Rule
+from rich.table import Table
+from rich import box
 
 from orchestrator.analyzer import ProjectAnalyzer
 from orchestrator.generator import PipelineGenerator
@@ -45,6 +47,12 @@ def parse_args(argv=None):
         action="store_true",
         default=False,
         help="Skip post-run resource cleanup.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print the generated pipeline steps without executing them.",
     )
     return parser.parse_args(argv)
 
@@ -84,6 +92,21 @@ def main(argv=None) -> int:
 
     if not pipeline.steps:
         log.warning("No pipeline steps generated. Nothing to do.")
+        return 0
+
+    # 2b. Dry-run — print steps and exit
+    if args.dry_run:
+        table = Table(box=box.ROUNDED, header_style="bold magenta", show_header=True)
+        table.add_column("Step", style="white", min_width=35)
+        table.add_column("Command", style="dim cyan", min_width=40)
+        table.add_column("Critical", justify="center", min_width=8)
+        table.add_column("Timeout", justify="right", min_width=8)
+        for step in pipeline.steps:
+            crit = "[bold green]yes[/]" if step.critical else "[dim]no[/]"
+            table.add_row(step.name, " ".join(step.command), crit, f"{step.timeout}s")
+        from rich.panel import Panel
+        console.print(Panel(table, title="[bold white]Dry Run — Pipeline Steps[/]",
+                            subtitle=f"{len(pipeline.steps)} step(s)", border_style="yellow"))
         return 0
 
     # 3. Execute
