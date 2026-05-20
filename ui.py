@@ -32,104 +32,185 @@ st.set_page_config(
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* Hero banner */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+/* ── Hero banner ─────────────────────────────────────────────── */
 .hero {
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    background: linear-gradient(135deg, #0d0221 0%, #1a0533 30%, #0a1628 60%, #001a33 100%);
     padding: 2rem 2.5rem;
-    border-radius: 14px;
+    border-radius: 16px;
     margin-bottom: 1.5rem;
-    border: 1px solid rgba(124,58,237,0.35);
+    border: 1px solid rgba(139,92,246,0.4);
+    box-shadow: 0 0 40px rgba(139,92,246,0.15), 0 0 80px rgba(56,189,248,0.05);
+    position: relative; overflow: hidden;
 }
-.hero h1 { color:#f1f5f9; font-size:1.9rem; margin:0; font-weight:700; letter-spacing:-0.5px; }
-.hero p  { color:#94a3b8; margin:0.4rem 0 0.8rem 0; font-size:0.9rem; }
+.hero::before {
+    content:''; position:absolute; top:-60px; right:-60px;
+    width:220px; height:220px; border-radius:50%;
+    background: radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%);
+}
+.hero::after {
+    content:''; position:absolute; bottom:-40px; left:20%;
+    width:160px; height:160px; border-radius:50%;
+    background: radial-gradient(circle, rgba(56,189,248,0.15) 0%, transparent 70%);
+}
+.hero h1 {
+    color:#f8fafc; font-size:2rem; margin:0; font-weight:800;
+    letter-spacing:-0.5px;
+    background: linear-gradient(90deg, #e2e8f0, #a78bfa, #38bdf8);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.hero p  { color:#94a3b8; margin:0.5rem 0 1rem 0; font-size:0.92rem; }
 .hero .pill {
     display:inline-block;
-    background:rgba(124,58,237,0.18);
-    color:#a78bfa;
-    border:1px solid rgba(124,58,237,0.4);
-    padding:2px 12px; border-radius:20px; font-size:0.72rem; margin-right:6px;
+    padding:3px 14px; border-radius:20px; font-size:0.72rem; margin-right:6px; font-weight:600;
 }
+.pill-py   { background:rgba(250,204,21,.15); color:#fde68a; border:1px solid rgba(250,204,21,.35); }
+.pill-node { background:rgba(52,211,153,.15); color:#6ee7b7; border:1px solid rgba(52,211,153,.35); }
+.pill-java { background:rgba(251,146,60,.15);  color:#fed7aa; border:1px solid rgba(251,146,60,.35); }
+.pill-ai   { background:rgba(167,139,250,.18); color:#c4b5fd; border:1px solid rgba(167,139,250,.4); }
 
-/* Stat cards in sidebar */
+/* ── Sidebar stat cards ────────────────────────────────────────── */
 .stat-card {
-    background: linear-gradient(135deg,#1e293b,#0f172a);
-    border:1px solid rgba(255,255,255,0.07);
-    border-radius:10px; padding:10px 14px; margin-bottom:8px; text-align:center;
+    border-radius:12px; padding:12px 16px; margin-bottom:10px; text-align:center;
+    border:1px solid rgba(255,255,255,0.08);
 }
-.stat-card .num { color:#e2e8f0; font-size:1.5rem; font-weight:700; }
-.stat-card .lbl { color:#64748b; font-size:0.7rem; text-transform:uppercase; letter-spacing:.05em; }
+.stat-runs  { background:linear-gradient(135deg,#1e1b4b,#312e81); border-color:rgba(99,102,241,.4); }
+.stat-pass  { background:linear-gradient(135deg,#052e16,#14532d); border-color:rgba(34,197,94,.3); }
+.stat-fail  { background:linear-gradient(135deg,#450a0a,#7f1d1d); border-color:rgba(239,68,68,.3); }
+.stat-time  { background:linear-gradient(135deg,#0c1a2e,#1e3a5f); border-color:rgba(56,189,248,.3); }
+.stat-card .num { font-size:1.7rem; font-weight:800; margin-bottom:2px; }
+.stat-runs  .num { color:#a5b4fc; }
+.stat-pass  .num { color:#4ade80; }
+.stat-fail  .num { color:#f87171; }
+.stat-time  .num { color:#38bdf8; }
+.stat-card .lbl { color:#94a3b8; font-size:0.68rem; text-transform:uppercase; letter-spacing:.08em; }
 
-/* Analysis cards */
+/* ── Analysis info cards ────────────────────────────────────────── */
 .info-card {
-    background:linear-gradient(135deg,#1e1e2e,#252545);
-    border:1px solid rgba(255,255,255,0.07);
-    border-radius:10px; padding:14px 16px; text-align:center;
+    border-radius:12px; padding:14px 16px; text-align:center;
+    border:1px solid rgba(255,255,255,0.08);
+    transition: transform 0.15s;
 }
-.info-card .val { color:#e2e8f0; font-size:1.3rem; font-weight:700; margin-bottom:4px; }
-.info-card .lbl { color:#64748b; font-size:0.7rem; text-transform:uppercase; letter-spacing:.06em; }
+.info-card:hover { transform: translateY(-2px); }
+.ic-type   { background:linear-gradient(135deg,#1a1040,#2e1065); border-color:rgba(139,92,246,.45); }
+.ic-build  { background:linear-gradient(135deg,#0c1a2e,#1e3a5f); border-color:rgba(56,189,248,.45); }
+.ic-fw     { background:linear-gradient(135deg,#0d2818,#14532d); border-color:rgba(52,211,153,.4); }
+.ic-test   { background:linear-gradient(135deg,#1c1003,#431407); border-color:rgba(251,146,60,.4); }
+.ic-tests  { background:linear-gradient(135deg,#0f172a,#1e293b); border-color:rgba(148,163,184,.25); }
+.ic-lint   { background:linear-gradient(135deg,#1a0a2e,#2d1b4e); border-color:rgba(232,121,249,.4); }
+.info-card .val { font-size:1.2rem; font-weight:800; margin-bottom:4px; }
+.ic-type  .val { color:#c4b5fd; }
+.ic-build .val { color:#7dd3fc; }
+.ic-fw    .val { color:#6ee7b7; }
+.ic-test  .val { color:#fdba74; }
+.ic-tests .val { color:#e2e8f0; }
+.ic-lint  .val { color:#f0abfc; }
+.info-card .lbl { color:#64748b; font-size:0.68rem; text-transform:uppercase; letter-spacing:.07em; }
 
-/* Pipeline timeline */
-.timeline { border-left:2px solid #334155; margin-left:14px; padding-left:0; list-style:none; }
-.tl-item  { position:relative; padding:8px 0 8px 28px; }
+/* ── Pipeline timeline ─────────────────────────────────────────── */
+.timeline { border-left:2px solid #1e293b; margin-left:14px; padding-left:0; list-style:none; }
+.tl-item  { position:relative; padding:10px 0 10px 28px; }
 .tl-dot   {
-    position:absolute; left:-7px; top:12px;
+    position:absolute; left:-7px; top:14px;
     width:12px; height:12px; border-radius:50%;
-    background:#7c3aed; border:2px solid #0f172a;
+    background:linear-gradient(135deg,#8b5cf6,#38bdf8);
+    border:2px solid #0f172a;
+    box-shadow: 0 0 8px rgba(139,92,246,0.6);
 }
-.tl-name  { color:#e2e8f0; font-weight:600; font-size:0.88rem; }
-.tl-cmd   { color:#475569; font-family:monospace; font-size:0.74rem; margin-top:2px; }
-.badge-c  { background:rgba(239,68,68,.15); color:#f87171; border:1px solid rgba(239,68,68,.3); padding:1px 8px; border-radius:12px; font-size:0.68rem; margin-left:6px; }
-.badge-o  { background:rgba(251,191,36,.15); color:#fbbf24; border:1px solid rgba(251,191,36,.3); padding:1px 8px; border-radius:12px; font-size:0.68rem; margin-left:6px; }
+.tl-name  { color:#e2e8f0; font-weight:700; font-size:0.88rem; }
+.tl-cmd   { color:#334155; font-family:monospace; font-size:0.74rem; margin-top:3px; background:#0f172a; padding:3px 8px; border-radius:4px; display:inline-block; }
+.badge-c  { background:rgba(239,68,68,.2); color:#fca5a5; border:1px solid rgba(239,68,68,.4); padding:2px 10px; border-radius:12px; font-size:0.68rem; margin-left:6px; font-weight:600; }
+.badge-o  { background:rgba(251,191,36,.15); color:#fde68a; border:1px solid rgba(251,191,36,.35); padding:2px 10px; border-radius:12px; font-size:0.68rem; margin-left:6px; font-weight:600; }
 
-/* Execution step cards */
-.step-running { background:#0f172a; border-left:4px solid #3b82f6; border-radius:8px; padding:12px 16px; margin-bottom:8px; }
-.step-pass    { background:rgba(34,197,94,.06); border-left:4px solid #22c55e; border-radius:8px; padding:12px 16px; margin-bottom:8px; }
-.step-fail    { background:rgba(239,68,68,.06);  border-left:4px solid #ef4444; border-radius:8px; padding:12px 16px; margin-bottom:8px; }
-.step-title   { color:#e2e8f0; font-weight:700; font-size:0.9rem; }
-.step-status-run  { color:#60a5fa; font-size:0.78rem; }
-.step-status-pass { color:#4ade80; font-size:0.78rem; }
-.step-status-fail { color:#f87171; font-size:0.78rem; }
-.step-time    { color:#64748b; font-size:0.74rem; float:right; }
+/* ── Execution step cards ──────────────────────────────────────── */
+.step-running {
+    background:linear-gradient(135deg,#0c1a3e,#0a1628);
+    border-left:4px solid #3b82f6; border-radius:10px; padding:12px 16px; margin-bottom:10px;
+    box-shadow:0 0 20px rgba(59,130,246,0.2);
+    animation: pulse-blue 1.5s ease-in-out infinite;
+}
+.step-pass {
+    background:linear-gradient(135deg,#021a0e,#052e16);
+    border-left:4px solid #22c55e; border-radius:10px; padding:12px 16px; margin-bottom:10px;
+    box-shadow:0 0 12px rgba(34,197,94,0.15);
+}
+.step-fail {
+    background:linear-gradient(135deg,#1a0505,#450a0a);
+    border-left:4px solid #ef4444; border-radius:10px; padding:12px 16px; margin-bottom:10px;
+    box-shadow:0 0 12px rgba(239,68,68,0.2);
+}
+@keyframes pulse-blue {
+    0%,100% { box-shadow:0 0 12px rgba(59,130,246,0.2); }
+    50%      { box-shadow:0 0 24px rgba(59,130,246,0.45); }
+}
+.step-title       { color:#f1f5f9; font-weight:700; font-size:0.92rem; }
+.step-status-run  { color:#60a5fa; font-size:0.78rem; font-weight:600; }
+.step-status-pass { color:#4ade80; font-size:0.78rem; font-weight:600; }
+.step-status-fail { color:#f87171; font-size:0.78rem; font-weight:600; }
+.step-time        { color:#475569; font-size:0.74rem; float:right; }
 
-/* Terminal log */
+/* ── Terminal log ──────────────────────────────────────────────── */
 .terminal {
-    background:#030712; color:#94a3b8;
-    font-family:monospace; font-size:0.76rem;
-    padding:10px 14px; border-radius:6px;
-    border:1px solid #1e293b;
+    background:#020817; color:#7dd3fc;
+    font-family:'Courier New',monospace; font-size:0.76rem;
+    padding:12px 16px; border-radius:8px;
+    border:1px solid rgba(56,189,248,0.2);
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
     max-height:260px; overflow-y:auto; white-space:pre-wrap;
 }
 
-/* Section label */
+/* ── Section label ─────────────────────────────────────────────── */
 .sec-label {
-    color:#64748b; font-size:0.68rem; text-transform:uppercase;
-    letter-spacing:.1em; margin-bottom:6px;
-    border-bottom:1px solid #1e293b; padding-bottom:4px;
+    font-size:0.68rem; text-transform:uppercase; letter-spacing:.12em;
+    margin-bottom:8px; padding-bottom:6px;
+    background:linear-gradient(90deg,#8b5cf6,#38bdf8);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    border-bottom:1px solid rgba(139,92,246,0.2);
+    font-weight:700;
 }
 
-/* Overall status banner */
-.banner-pass { background:linear-gradient(90deg,rgba(34,197,94,.15),transparent); border-left:4px solid #22c55e; border-radius:8px; padding:14px 20px; color:#4ade80; font-weight:700; font-size:1rem; }
-.banner-fail { background:linear-gradient(90deg,rgba(239,68,68,.15),transparent); border-left:4px solid #ef4444; border-radius:8px; padding:14px 20px; color:#f87171; font-weight:700; font-size:1rem; }
+/* ── Status banners ────────────────────────────────────────────── */
+.banner-pass {
+    background:linear-gradient(90deg,rgba(34,197,94,.2),rgba(16,185,129,.08),transparent);
+    border-left:4px solid #22c55e; border-radius:10px; padding:16px 22px;
+    color:#4ade80; font-weight:700; font-size:1.05rem;
+    box-shadow:0 0 20px rgba(34,197,94,0.1);
+}
+.banner-fail {
+    background:linear-gradient(90deg,rgba(239,68,68,.2),rgba(220,38,38,.08),transparent);
+    border-left:4px solid #ef4444; border-radius:10px; padding:16px 22px;
+    color:#f87171; font-weight:700; font-size:1.05rem;
+    box-shadow:0 0 20px rgba(239,68,68,0.1);
+}
 
-/* GitHub repo card */
+/* ── GitHub repo card ──────────────────────────────────────────── */
 .repo-card {
     background:linear-gradient(135deg,#0d1117,#161b22);
-    border:1px solid #30363d; border-radius:12px; padding:20px 24px; margin-bottom:12px;
+    border:1px solid rgba(88,166,255,0.25); border-radius:14px;
+    padding:20px 24px; margin-bottom:12px;
+    box-shadow:0 0 20px rgba(88,166,255,0.06);
 }
 .repo-card .repo-title { color:#e6edf3; font-size:1.1rem; font-weight:700; }
 .repo-card .repo-desc  { color:#8b949e; font-size:0.82rem; margin:6px 0 10px 0; }
 .repo-card .repo-meta  { display:flex; gap:18px; flex-wrap:wrap; }
 .repo-meta-item { color:#8b949e; font-size:0.78rem; }
 .repo-meta-item span { color:#e6edf3; font-weight:600; }
-.lang-dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#f1e05a; margin-right:4px; }
-.commit-badge { background:#21262d; border:1px solid #30363d; border-radius:6px; padding:3px 10px; font-family:monospace; font-size:0.75rem; color:#8b949e; }
-.gh-user-badge { background:rgba(88,166,255,.12); border:1px solid rgba(88,166,255,.3); color:#58a6ff; padding:3px 12px; border-radius:20px; font-size:0.78rem; }
+.lang-dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:linear-gradient(135deg,#f1e05a,#f59e0b); margin-right:4px; box-shadow:0 0 6px rgba(245,158,11,0.5); }
+.commit-badge { background:#21262d; border:1px solid rgba(88,166,255,.25); border-radius:6px; padding:3px 10px; font-family:monospace; font-size:0.75rem; color:#58a6ff; }
+.gh-user-badge { background:rgba(88,166,255,.15); border:1px solid rgba(88,166,255,.35); color:#58a6ff; padding:4px 14px; border-radius:20px; font-size:0.78rem; font-weight:600; }
 
-/* AI analysis */
+/* ── AI analysis card ──────────────────────────────────────────── */
 .ai-card {
-    background:linear-gradient(135deg,#0d0d1a,#1a0d2e);
-    border:1px solid rgba(167,139,250,0.3);
-    border-radius:10px; padding:16px 20px; margin-top:8px;
+    background:linear-gradient(135deg,#0a0718,#150a2e,#0a1828);
+    border:1px solid rgba(167,139,250,0.4);
+    border-radius:12px; padding:18px 22px; margin-top:10px;
+    box-shadow:0 0 30px rgba(167,139,250,0.1);
+}
+
+/* ── Streamlit tab override ────────────────────────────────────── */
+button[data-baseweb="tab"] {
+    font-weight:600 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -448,9 +529,11 @@ with st.sidebar:
     total  = len(st.session_state.run_history)
     passed_total = sum(1 for r in st.session_state.run_history if r.get("Result") == "PASS")
     rate   = round(passed_total / total * 100) if total else 0
+    failed_total = total - passed_total
     st.markdown(f"""
-    <div class="stat-card"><div class="num">{total}</div><div class="lbl">Total Runs</div></div>
-    <div class="stat-card"><div class="num" style="color:#4ade80">{rate}%</div><div class="lbl">Pass Rate</div></div>
+    <div class="stat-card stat-runs"><div class="num">{total}</div><div class="lbl">Total Runs</div></div>
+    <div class="stat-card stat-pass"><div class="num">{rate}%</div><div class="lbl">Pass Rate</div></div>
+    <div class="stat-card stat-fail"><div class="num">{failed_total}</div><div class="lbl">Failed Runs</div></div>
     """, unsafe_allow_html=True)
 
     # Pass-rate sparkline (last 10 runs)
@@ -485,12 +568,12 @@ st.markdown("""
 <div class="hero">
   <h1>🔧 CI/CD Orchestrator Agent</h1>
   <p>Local pipeline execution with automatic project detection, structured reporting, and AI-powered failure analysis</p>
-  <span class="pill">Python</span>
-  <span class="pill">Node.js</span>
-  <span class="pill">Auto-detect</span>
-  <span class="pill">Retry</span>
-  <span class="pill">Rich Logs</span>
-  <span class="pill">AI Analysis</span>
+  <span class="pill pill-py">🐍 Python</span>
+  <span class="pill pill-node">⬡ Node.js</span>
+  <span class="pill pill-java">☕ Java</span>
+  <span class="pill pill-ai">✦ AI Analysis</span>
+  <span class="pill pill-node">⚡ Auto-detect</span>
+  <span class="pill pill-py">↺ Retry</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -683,16 +766,16 @@ with tab_local:
             )
             c1, c2, c3, c4, c5, c6 = st.columns(6)
             cards = [
-                ("Type",           config.project_type.capitalize(), c1),
-                ("Build / Runtime", _runtime,                         c2),
-                ("Frameworks",     _fw_str,                           c3),
-                ("Test Framework", config.test_framework.capitalize(), c4),
-                ("Has Tests",      "Yes" if config.has_tests      else "No", c5),
-                ("Lint Config",    "Yes" if config.has_lint_config else "No", c6),
+                ("Type",            config.project_type.capitalize(), c1, "ic-type"),
+                ("Build / Runtime", _runtime,                         c2, "ic-build"),
+                ("Frameworks",      _fw_str,                          c3, "ic-fw"),
+                ("Test Framework",  config.test_framework.capitalize(), c4, "ic-test"),
+                ("Has Tests",       "Yes" if config.has_tests      else "No", c5, "ic-tests"),
+                ("Lint Config",     "Yes" if config.has_lint_config else "No", c6, "ic-lint"),
             ]
-            for label, value, col in cards:
+            for label, value, col, cls in cards:
                 col.markdown(
-                    f'<div class="info-card"><div class="val">{value}</div>'
+                    f'<div class="info-card {cls}"><div class="val">{value}</div>'
                     f'<div class="lbl">{label}</div></div>',
                     unsafe_allow_html=True,
                 )
