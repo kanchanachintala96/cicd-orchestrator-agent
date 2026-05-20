@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from dataclasses import dataclass, field
 from typing import Optional
 from .logger import get_logger
@@ -19,6 +20,9 @@ class ProjectConfig:
     has_lint_config: bool = False
     python_executable: str = "python"
     node_package_manager: str = ""
+    build_tool: str = ""
+    build_tool_executable: str = ""
+    frameworks: list = field(default_factory=list)
     extra: dict = field(default_factory=dict)
 
 
@@ -52,6 +56,13 @@ class ProjectAnalyzer:
             config.has_tests = self._detect_node_tests()
             config.test_framework = self._detect_node_test_framework()
             config.has_lint_config = self._detect_node_lint()
+            config.frameworks = self._detect_node_frameworks()
+        elif project_type == "java":
+            config.build_tool = self._detect_build_tool()
+            config.build_tool_executable = self._detect_java_executable(config.build_tool)
+            config.has_tests = self._detect_java_tests()
+            config.test_framework = "junit"
+            config.frameworks = self._detect_java_frameworks()
         else:
             config.has_requirements = self._exists("requirements.txt")
             config.has_setup_py = self._exists("setup.py")
@@ -60,6 +71,7 @@ class ProjectAnalyzer:
             config.test_framework = self._detect_test_framework()
             config.has_lint_config = self._detect_lint()
             config.python_executable = self._detect_python()
+            config.frameworks = self._detect_python_frameworks()
 
         if project_type == "unknown":
             log.warning(
@@ -77,6 +89,8 @@ class ProjectAnalyzer:
     def _detect_type(self) -> str:
         if self._exists("package.json"):
             return "node"
+        if self._exists("pom.xml") or self._exists("build.gradle") or self._exists("build.gradle.kts"):
+            return "java"
         py_markers = ["requirements.txt", "setup.py", "pyproject.toml"]
         for marker in py_markers:
             if self._exists(marker):
@@ -84,6 +98,12 @@ class ProjectAnalyzer:
         for f in os.listdir(self.repo_path):
             if f.endswith(".py"):
                 return "python"
+        # detect java by scanning for .java files in src/
+        src_dir = os.path.join(self.repo_path, "src")
+        if os.path.isdir(src_dir):
+            for root, _, files in os.walk(src_dir):
+                if any(f.endswith(".java") for f in files):
+                    return "java"
         return "unknown"
 
     # ── Python detection ──────────────────────────────────────────────────────
@@ -184,3 +204,120 @@ class ProjectAnalyzer:
                 return json.load(f)
         except Exception:
             return {}
+
+    def _detect_node_frameworks(self) -> list:
+        pkg = self._read_package_json()
+        if not pkg:
+            return []
+        all_deps = {
+            **pkg.get("dependencies", {}),
+            **pkg.get("devDependencies", {}),
+        }
+        found = []
+        fw_map = {
+            "react": "React", "vue": "Vue", "next": "Next.js",
+            "nuxt": "Nuxt", "express": "Express", "fastify": "Fastify",
+            "svelte": "@sveltejs/kit", "angular": "@angular/core",
+        }
+        for key, label in fw_map.items():
+            if key in all_deps or label in all_deps:
+                found.append(label if label in all_deps else key.capitalize())
+        return found
+
+    # ── Java detection ────────────────────────────────────────────────────────
+    def _detect_build_tool(self) -> str:
+        if self._exists("pom.xml"):
+            return "maven"
+        if self._exists("build.gradle") or self._exists("build.gradle.kts"):
+            return "gradle"
+        return "maven"
+
+    def _detect_java_executable(self, build_tool: str) -> str:
+        wrapper = "mvnw" if build_tool == "maven" else "gradlew"
+        if os.path.isfile(os.path.join(self.repo_path, wrapper)):
+            return f"./{wrapper}"
+        binary = "mvn" if build_tool == "maven" else "gradle"
+        found = shutil.which(binary)
+        if found:
+            return found
+        # Fallback: scan common install locations when PATH isn't updated yet
+        home = os.path.expanduser("~")
+        candidates = (
+            [os.path.join(home, "maven"), os.path.join(home, ".maven")]
+            if build_tool == "maven"
+            else [os.path.join(home, "gradle"), os.path.join(home, ".gradle")]
+        )
+        ext = ".cmd" if os.name == "nt" else ""
+        for base in candidates:
+            if not os.path.isdir(base):
+                continue
+            for entry in sorted(os.listdir(base), reverse=True):
+                candidate = os.path.join(base, entry, "bin", f"{binary}{ext}")
+                if os.path.isfile(candidate):
+                    return candidate
+        return ""
+
+    def _detect_java_tests(self) -> bool:
+        test_dir = os.path.join(self.repo_path, "src", "test")
+        if not os.path.isdir(test_dir):
+            return False
+        for root, _, files in os.walk(test_dir):
+            if any(f.endswith(".java") for f in files):
+                return True
+        return False
+
+    def _detect_java_frameworks(self) -> list:
+        found = []
+        pom_path = os.path.join(self.repo_path, "pom.xml")
+        gradle_path = os.path.join(self.repo_path, "build.gradle")
+        content = ""
+        for path in (pom_path, gradle_path):
+            if os.path.isfile(path):
+                try:
+                    content += open(path, encoding="utf-8", errors="ignore").read().lower()
+                except Exception:
+                    pass
+        fw_map = {
+            "spring-boot": "Spring Boot",
+            "spring-web": "Spring Web",
+            "quarkus": "Quarkus",
+            "micronaut": "Micronaut",
+            "junit-jupiter": "JUnit 5",
+            "junit": "JUnit",
+            "mockito": "Mockito",
+            "hibernate": "Hibernate",
+            "jakarta": "Jakarta EE",
+        }
+        for key, label in fw_map.items():
+            if key in content:
+                found.append(label)
+        return found
+
+    # ── Python framework detection ─────────────────────────────────────────────
+    def _detect_python_frameworks(self) -> list:
+        found = []
+        sources = []
+        for fname in ("requirements.txt", "pyproject.toml", "setup.py", "setup.cfg"):
+            path = os.path.join(self.repo_path, fname)
+            if os.path.isfile(path):
+                try:
+                    sources.append(open(path, encoding="utf-8", errors="ignore").read().lower())
+                except Exception:
+                    pass
+        content = "\n".join(sources)
+        fw_map = {
+            "django": "Django",
+            "flask": "Flask",
+            "fastapi": "FastAPI",
+            "streamlit": "Streamlit",
+            "tornado": "Tornado",
+            "aiohttp": "aiohttp",
+            "starlette": "Starlette",
+            "celery": "Celery",
+            "sqlalchemy": "SQLAlchemy",
+            "pydantic": "Pydantic",
+        }
+        for key, label in fw_map.items():
+            if key in content:
+                found.append(label)
+        return found

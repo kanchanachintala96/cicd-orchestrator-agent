@@ -676,13 +676,19 @@ with tab_local:
             config = ProjectAnalyzer(abs_path).analyze()
 
             st.markdown('<div class="sec-label">Project Analysis</div>', unsafe_allow_html=True)
-            c1, c2, c3, c4, c5 = st.columns(5)
+            _fw_str = ", ".join(config.frameworks[:3]) if config.frameworks else "—"
+            _runtime = (
+                config.build_tool.capitalize() if config.build_tool
+                else config.node_package_manager or config.python_executable
+            )
+            c1, c2, c3, c4, c5, c6 = st.columns(6)
             cards = [
                 ("Type",           config.project_type.capitalize(), c1),
-                ("Test Framework", config.test_framework.capitalize(), c2),
-                ("Has Tests",      "Yes" if config.has_tests      else "No", c3),
-                ("Lint Config",    "Yes" if config.has_lint_config else "No", c4),
-                ("Runtime",        config.node_package_manager or config.python_executable, c5),
+                ("Build / Runtime", _runtime,                         c2),
+                ("Frameworks",     _fw_str,                           c3),
+                ("Test Framework", config.test_framework.capitalize(), c4),
+                ("Has Tests",      "Yes" if config.has_tests      else "No", c5),
+                ("Lint Config",    "Yes" if config.has_lint_config else "No", c6),
             ]
             for label, value, col in cards:
                 col.markdown(
@@ -692,6 +698,15 @@ with tab_local:
                 )
 
             st.markdown("<br>", unsafe_allow_html=True)
+
+            if config.project_type == "java" and not getattr(config, "build_tool_executable", ""):
+                _bt = config.build_tool or "maven"
+                _url = ("https://maven.apache.org/install.html" if _bt == "maven"
+                        else "https://gradle.org/install/")
+                st.warning(
+                    f"**{_bt.capitalize()} not found on PATH.** "
+                    f"Install it from [{_url}]({_url}) and restart the app to run Java pipelines."
+                )
 
             if goal and goal.strip():
                 try:

@@ -43,10 +43,15 @@ class PipelineGenerator:
         pipeline = Pipeline(goal=self.goal)
 
         if self._matches(_GOAL_DEPLOY):
-            pipeline.steps.extend(self._steps_full_pipeline() if self.config.project_type in ("python", "node") else [])
+            if self.config.project_type in ("python", "node"):
+                pipeline.steps.extend(self._steps_full_pipeline())
+            elif self.config.project_type == "java":
+                pipeline.steps.extend(self._generate_java_pipeline())
             pipeline.steps.extend(self._deploy_step())
         elif self.config.project_type == "node":
             pipeline.steps.extend(self._generate_node_pipeline())
+        elif self.config.project_type == "java":
+            pipeline.steps.extend(self._generate_java_pipeline())
         elif self.config.project_type == "python":
             if self._matches(_GOAL_TESTS):
                 pipeline.steps.extend(self._steps_tests_only())
@@ -91,9 +96,49 @@ class PipelineGenerator:
         steps.extend(self._install_step())
         if self.config.has_lint_config:
             steps.append(self._lint_step())
+        steps.extend(self._framework_steps())
         steps.extend(self._test_step())
         steps.extend(self._run_app_step())
         steps.extend(self._build_step())
+        return steps
+
+    def _framework_steps(self) -> List[PipelineStep]:
+        steps: List[PipelineStep] = []
+        frameworks = {f.lower() for f in (self.config.frameworks or [])}
+        py = self.config.python_executable
+
+        if "django" in frameworks:
+            steps.append(PipelineStep(
+                name="Django system check",
+                command=[py, "manage.py", "check", "--deploy", "--fail-level", "WARNING"],
+                cwd=self.config.root,
+                critical=False,
+                max_retries=1,
+                timeout=30,
+            ))
+        if "flask" in frameworks:
+            main_file = next(
+                (f for f in ("app.py", "wsgi.py", "run.py") if os.path.isfile(os.path.join(self.config.root, f))),
+                None,
+            )
+            if main_file:
+                steps.append(PipelineStep(
+                    name="Flask syntax check",
+                    command=[py, "-m", "py_compile", main_file],
+                    cwd=self.config.root,
+                    critical=False,
+                    max_retries=1,
+                    timeout=15,
+                ))
+        if "fastapi" in frameworks:
+            steps.append(PipelineStep(
+                name="FastAPI import check",
+                command=[py, "-c", "import fastapi; print('FastAPI OK')"],
+                cwd=self.config.root,
+                critical=False,
+                max_retries=1,
+                timeout=15,
+            ))
         return steps
 
     def _install_step(self) -> List[PipelineStep]:
@@ -183,14 +228,24 @@ class PipelineGenerator:
         )]
 
     def _deploy_step(self) -> list:
-        return [PipelineStep(
-            name="Deploy (git push → main)",
-            command=["git", "push", "origin", "HEAD:main"],
-            cwd=self.config.root,
-            critical=True,
-            max_retries=1,
-            timeout=60,
-        )]
+        return [
+            PipelineStep(
+                name="Sync with remote (git pull --rebase)",
+                command=["git", "pull", "--rebase", "origin", "main"],
+                cwd=self.config.root,
+                critical=True,
+                max_retries=1,
+                timeout=60,
+            ),
+            PipelineStep(
+                name="Deploy (git push → main)",
+                command=["git", "push", "origin", "HEAD:main"],
+                cwd=self.config.root,
+                critical=True,
+                max_retries=1,
+                timeout=60,
+            ),
+        ]
 
     def _echo_step(self, message: str) -> PipelineStep:
         return PipelineStep(
@@ -199,6 +254,101 @@ class PipelineGenerator:
             cwd=self.config.root,
             critical=False,
         )
+
+    # ── Java pipeline ─────────────────────────────────────────────────────────
+    def _generate_java_pipeline(self) -> List[PipelineStep]:
+        bt = self.config.build_tool or "maven"
+        exe = getattr(self.config, "build_tool_executable", "")
+
+        if not exe:
+            binary = "mvn" if bt == "maven" else "gradle"
+            install_url = (
+                "https://maven.apache.org/install.html"
+                if bt == "maven"
+                else "https://gradle.org/install/"
+            )
+            return [PipelineStep(
+                name=f"Prerequisite missing: {binary}",
+                command=["echo",
+                         f"{binary} not found on PATH. "
+                         f"Install it from {install_url} and ensure it is on your PATH."],
+                cwd=self.config.root,
+                critical=True,
+                max_retries=0,
+                timeout=5,
+            )]
+
+        cmd_base = exe.split() if " " in exe else [exe]
+        java_env = self._java_env(exe)
+        steps: List[PipelineStep] = []
+
+        if bt == "gradle":
+            steps.append(PipelineStep(
+                name="Compile (Gradle)",
+                command=cmd_base + ["compileJava", "--no-daemon"],
+                cwd=self.config.root, env=java_env,
+                critical=True, max_retries=1, timeout=180,
+            ))
+            if self.config.has_tests:
+                steps.append(PipelineStep(
+                    name="Run tests (Gradle)",
+                    command=cmd_base + ["test", "--no-daemon"],
+                    cwd=self.config.root, env=java_env,
+                    critical=True, max_retries=1, timeout=300,
+                ))
+            steps.append(PipelineStep(
+                name="Package (Gradle)",
+                command=cmd_base + ["build", "-x", "test", "--no-daemon"],
+                cwd=self.config.root, env=java_env,
+                critical=False, max_retries=1, timeout=300,
+            ))
+        else:
+            steps.append(PipelineStep(
+                name="Compile (Maven)",
+                command=cmd_base + ["compile", "-q"],
+                cwd=self.config.root, env=java_env,
+                critical=True, max_retries=1, timeout=180,
+            ))
+            if self.config.has_tests:
+                steps.append(PipelineStep(
+                    name="Run tests (Maven/JUnit)",
+                    command=cmd_base + ["test"],
+                    cwd=self.config.root, env=java_env,
+                    critical=True, max_retries=1, timeout=300,
+                ))
+            steps.append(PipelineStep(
+                name="Package JAR (Maven)",
+                command=cmd_base + ["package", "-DskipTests", "-q"],
+                cwd=self.config.root, env=java_env,
+                critical=False, max_retries=1, timeout=300,
+            ))
+
+        return steps
+
+    def _java_env(self, exe: str) -> dict:
+        import os as _os
+        env = dict(_os.environ)
+        if "JAVA_HOME" not in env or not _os.path.isdir(env.get("JAVA_HOME", "")):
+            java_home = _os.environ.get("JAVA_HOME", "")
+            for candidate in (
+                r"C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot",
+                r"C:\Program Files\Eclipse Adoptium\jdk-21",
+            ):
+                if _os.path.isdir(candidate):
+                    java_home = candidate
+                    break
+            if java_home:
+                env["JAVA_HOME"] = java_home
+        # Ensure the directory containing the executable is on PATH
+        exe_dir = _os.path.dirname(exe)
+        if exe_dir and exe_dir not in env.get("PATH", ""):
+            env["PATH"] = exe_dir + _os.pathsep + env.get("PATH", "")
+        java_home = env.get("JAVA_HOME", "")
+        if java_home:
+            java_bin = _os.path.join(java_home, "bin")
+            if java_bin not in env.get("PATH", ""):
+                env["PATH"] = java_bin + _os.pathsep + env["PATH"]
+        return env
 
     # ── Node.js pipeline ──────────────────────────────────────────────────────
     def _generate_node_pipeline(self) -> List[PipelineStep]:
