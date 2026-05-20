@@ -435,7 +435,7 @@ with st.sidebar:
 
     repo_path = st.text_input("Repository Path", value="./sample_app", placeholder="./my_project")
 
-    GOALS = ["Run pipeline", "Run tests", "Lint only", "Custom..."]
+    GOALS = ["Run pipeline", "Run tests", "Lint only", "Deploy", "Custom..."]
     goal_choice = st.selectbox("Goal", GOALS, index=0)
     goal = st.text_input("Custom goal", placeholder="e.g. deploy to staging") if goal_choice == "Custom..." else goal_choice
 
@@ -563,7 +563,7 @@ with tab_github:
             except Exception:
                 branches = [info.default_branch]
 
-        gc1, gc2, gc3 = st.columns([2, 2, 1])
+        gc1, gc2, gc3, gc4 = st.columns([2, 2, 2, 1])
         with gc1:
             selected_branch = st.selectbox(
                 "Branch", branches,
@@ -571,11 +571,18 @@ with tab_github:
                 key="gh_branch",
             )
         with gc2:
-            GH_GOALS = ["Run pipeline", "Run tests", "Lint only", "Custom..."]
+            GH_GOALS = ["Run pipeline", "Run tests", "Lint only", "Deploy", "Custom..."]
             gh_goal_choice = st.selectbox("Goal", GH_GOALS, key="gh_goal_choice")
             gh_goal = (st.text_input("Custom goal", key="gh_custom_goal")
                        if gh_goal_choice == "Custom..." else gh_goal_choice)
         with gc3:
+            gh_subdir = st.text_input(
+                "Subdirectory (optional)",
+                placeholder="e.g. sample_app",
+                key="gh_subdir",
+                help="Analyze a subfolder of the repo instead of the root",
+            )
+        with gc4:
             st.markdown("<br>", unsafe_allow_html=True)
             gh_no_cleanup = st.toggle("Skip cleanup", key="gh_no_cleanup")
 
@@ -583,6 +590,7 @@ with tab_github:
             os.path.dirname(os.path.abspath(__file__)),
             ".cloned_repos", f"{gh_owner}__{gh_repo_name}",
         )
+        analyze_dir = os.path.join(clone_dir, gh_subdir.strip()) if gh_subdir.strip() else clone_dir
 
         clone_run_btn = st.button("🚀  Clone & Run Pipeline", type="primary", key="gh_run_btn")
 
@@ -606,7 +614,7 @@ with tab_github:
                 )
 
             try:
-                gh_config   = ProjectAnalyzer(clone_dir).analyze()
+                gh_config   = ProjectAnalyzer(analyze_dir).analyze()
                 gh_pipeline = PipelineGenerator(gh_config, goal=gh_goal).generate()
             except Exception as exc:
                 st.error(f"Setup failed: {exc}")
