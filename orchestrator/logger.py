@@ -8,7 +8,7 @@ console = Console(legacy_windows=False)
 LOG_DIR = Path("~/.cicd_orchestrator/logs").expanduser()
 
 
-def get_logger(name: str = "cicd", log_file: str | None = None) -> logging.Logger:
+def get_logger(name: str = "cicd", log_file: "str | None" = None) -> logging.Logger:
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
